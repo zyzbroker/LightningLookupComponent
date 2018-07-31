@@ -1,0 +1,9 @@
+.THIS .rst-section {
+    margin: 20px;
+    padding: 20px;
+    border: 1px solid #ddd;
+}
+
+.THIS .hide {
+    display: none;
+}

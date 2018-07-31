@@ -1,0 +1,6 @@
+<aura:component extensible="true">
+<aura:attribute name="rst_timeout_id" type="integer" default="0"/>
+<aura:attribute name="rst_lock" type="boolean" default="false"/>
+<aura:attribute name="rst_firsttime_lock" type="boolean" default="true"/>
+{!v.body}
+</aura:component>

@@ -1,0 +1,111 @@
+<aura:component extends="c:rst_stub" controller="RST_StubController">
+    <aura:attribute type="String" name="id" default=""/>
+    <aura:attribute type="String" name="value" default=""/>
+    <aura:attribute type="String" name="style" default="" />
+    <aura:attribute type="String" name="scrollSize" default="small"/>
+    <aura:attribute type="String" name="label" default="" />
+    <aura:attribute type="String" name="placeholder" default="Search..." />
+    <aura:attribute type="String" name="iconName" default="standard:account" />
+    <aura:attribute type="String" name="filter" default="" description="soql query where clause"/>
+    <aura:attribute type="string" name="sobject" default="" description="salesforce schema entity"/>
+    <aura:attribute type="string" name="sobjectName" default="" description="entry description"/>
+    <aura:attribute type="string" name="searchField" default=""/>
+    <aura:attribute type="string" name="orderByField" default=""/>
+    <aura:attribute type="boolean" name="ascending" default="false"/>
+    <aura:attribute type="boolean" name="noDuplicate" default="false"/>
+    <aura:attribute type="integer" name="pageSize" default="5"/>
+    <aura:attribute type="String" name="subTitleFields" default=""/>
+    <aura:attribute type="integer" name="debounceDuration" default="250"/>
+
+    <!-- private variable -->
+    <aura:attribute type="boolean" name="isTyping" access="private" default="false"/>
+    <aura:attribute type="boolean" name="isValueSelected" access="private" default="false"/>
+    <aura:attribute type="boolean" name="skipBlur" access="private" default="false"/>
+    <aura:attribute type="String" name="keyword" access="private" default=""/>
+    <aura:attribute type="boolean" name="isSearching" access="private" default="false" />
+    <aura:attribute type="boolean" name="beginToSearch" access="private" default="false" />
+    <aura:attribute type="String" name="controlId" access="private" />
+    <aura:attribute type="List" name="results" default="[]" access="private" />
+    <aura:attribute type="boolean" name="focused" default="false" access="private" />
+
+    <!-- event handler -->
+    <aura:handler name="init" value="{! this}" action="{! c.onInit }" />
+    
+    <div style="{! v.style }">
+        <div class="slds-form-element">
+            <!-- label -->
+            <aura:if isTrue="{!not(empty(v.label))}">
+                <label class="slds-form-element__label" for="{! v.controlId}">{! v.label }</label>
+            </aura:if>
+            <!-- input element -->
+            <div class="slds-form-element__control">
+                <div class="slds-combobox_container" aura:id="lookupContainer">
+                    <div aura:id="lookup" class="slds-combobox slds-dropdown-trigger slds-dropdown-trigger_click" aria-expanded="true" aria-haspopup="listbox" role="combobox">
+                        <aura:if isTrue="{! !v.isValueSelected }">
+                        <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                            <input type="text" aura:id="lookupInput" value="{! v.value }" onblur="{! c.onBlur }" onfocus="{! c.onFocus }" onkeyup="{! c.onKeydown }" class="{! if(v.focused, 'slds-input slds-combobox__input slds-has-focus','slds-input slds-combobox__input')}" id="{! v.controlId }" aria-activedescendant="option1" aria-autocomplete="list" aria-controls="listbox-id-3" autocomplete="off" role="textbox" placeholder="{! v.placeholder }" />
+                            <span class="slds-icon_container slds-icon-utility-search slds-input__icon slds-input__icon_right">
+                                <lightning:icon class="slds-icon-text-default" iconName="utility:search" alternativeText="Search" size="x-small"></lightning:icon>
+                            </span>
+                        </div>
+                        <aura:set attribute="else">
+                            <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_left-right" role="none">
+                            <span class="slds-icon_container slds-icon-standard-account slds-combobox__input-entity-icon" title="Account">
+                                <lightning:icon class="slds-icon-text-default" iconName="{! v.iconName}" alternativeText="{! v.sobjectName}" size="x-small"></lightning:icon>
+                              <span class="slds-assistive-text">{! if(v.sobjectName != '', v.sobjectName, v.sobject)}</span>
+                            </span>
+                            <input type="text" id="{! v.controlId }" readonly="true" class="slds-input slds-combobox__input slds-combobox__input-value" value="{!v.value}"/>
+                            <button class="slds-button slds-button_icon slds-input__icon slds-input__icon_right" title="Remove selected option" onclick="{! c.onRemoveOption }">
+                               <lightning:icon class="slds-icon-text-default" iconName="utility:close" alternativeText="Remove Selected Option" size="x-small"></lightning:icon>
+                              <span class="slds-assistive-text">Remove selected option</span>
+                            </button>
+                        </div>
+                        </aura:set>
+                        </aura:if>
+                        <aura:if isTrue="{! v.isTyping}">
+                            <div id="listbox-id-3" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox">
+                                <h3 class="slds-p-around_small">Waiting for the input...</h3>
+                            </div>
+                        </aura:if>
+                        <aura:if isTrue="{! v.isSearching}">
+                            <div id="listbox-id-3" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox">
+                                <lightning:spinner alternativeText="Searching" size="small" variant="brand" />
+                                <h3 class="slds-p-around_small">Searching...</h3>
+                            </div>
+                            <aura:set attribute="else">
+                                <aura:if isTrue="{! and( !v.beginToSearch, v.results.length == 0, v.keyword.length > 0) }">
+                                  <div id="listbox-id-3" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox">
+                                        <h3 class="slds-p-around_small">{! 'No results found for "' + v.keyword + '"'}</h3>
+                                    </div>
+                                </aura:if>
+                                <aura:if isTrue="{! v.results.length > 0 }">
+                                 <div id="listbox-id-3" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox" onmouseenter="{! c.onEnterResults }" onmouseleave="{! c.onLeaveResults }">
+                                    <UI:SCROLLERWRAPPER class="{! 'scroll ' + v.scrollSize}">
+                                        <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                            <aura:iteration items="{! v.results}" var="result">
+                                            <li role="presentation" aria-selected="true" class="slds-listbox__item">
+                                                <a href="#" aria-selected="true" data-id="{! result.id}" class="{!if(result.selected,'slds-media slds-listbox__option slds-listbox__option_entity slds-listbox__option_has-meta slds-has-focus', 'slds-media slds-listbox__option slds-listbox__option_entity slds-listbox__option_has-meta')}" role="option" tabindex="-1" onclick="{! c.onSelectOption }">
+                                                    <span class="slds-media__figure">
+                                                        <span class="slds-icon_container slds-icon-standard-account">
+                                                            <lightning:icon iconName="{! v.iconName }" alternativeText="account" size="small"></lightning:icon>
+                                                        </span>
+                                                    </span>
+                                                    <span class="slds-media__body">
+                                                        <span class="slds-listbox__option-text slds-listbox__option-text_entity">{! result.title}</span>
+                                                    <span class="slds-listbox__option-meta slds-listbox__option-meta_entity">{! result.subtitle}</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                           </aura:iteration>
+                                        </ul>
+                                    </UI:SCROLLERWRAPPER>
+                                    </div>
+                                </aura:if>
+                            </aura:set>
+                        </aura:if>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</aura:component>
